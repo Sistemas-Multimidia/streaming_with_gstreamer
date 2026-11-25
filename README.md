@@ -7,6 +7,7 @@ Atividade prática da disciplina **CMP1103** — transmissão e recepção de á
 - [A. Visão Geral](#a-visão-geral)
 - [B. Linux (Fedora) + CLion](#b-linux-fedora--clion)
 - [C. Windows + Visual Studio](#c-windows--visual-studio)
+- [D. Atividade final — Parte 2: interfaces gráficas (vídeo)](#d-atividade-final--parte-2-interfaces-gráficas-vídeo)
 - [Solução de problemas](#solução-de-problemas)
 
 ---
@@ -277,6 +278,87 @@ Uso básico do Clumsy (execute como **Administrador**):
 3. Observe os logs `[LOSS]`, `[DROP]`, `[STATS]` no console do receptor.
 
 Observação: o Clumsy captura tráfego de loopback (`127.0.0.1`) de forma limitada em algumas versões; se não funcionar, rode transmissor e receptor em duas máquinas ou use o WSL2/Linux com `tc`.
+
+---
+
+## D. Atividade final — Parte 2: interfaces gráficas (vídeo)
+
+Servidor (transmissor) e cliente (receptor) com interface **GTK4** em **C++17**, transmitindo **vídeo H.264 em MPEG-TS sobre UDP**. O código fica dividido em núcleo (`src/core`), interfaces (`src/ui`) e versões de terminal (`src/cli`).
+
+As pipelines são montadas elemento a elemento (`gst_element_factory_make` + `g_object_set`) e controladas com `gst_element_set_state` (`PLAYING`/`NULL`). Nada de `gst-launch` nem `gst_parse_launch`.
+
+```text
+Servidor: videotestsrc is-live pattern=ball | autovideosrc
+          -> videoconvert -> videoscale -> videorate -> I420 WxH@F -> queue (leaky)
+          -> x264enc tune=zerolatency speed-preset=P bitrate=B key-int-max=F
+          -> h264parse config-interval=-1 -> mpegtsmux alignment=7
+          -> udpsink host=IP port=PORTA sync=false
+
+Cliente:  udpsrc port=PORTA caps=video/mpegts -> queue -> tsdemux ~(pad-added)~>
+          queue -> h264parse -> avdec_h264 | openh264dec -> videoconvert
+          -> gtk4paintablesink (na janela) | autovideosink (janela separada)
+```
+
+O fluxo é compatível com o VLC (`udp://@:5000`).
+
+### D.1 Estrutura
+
+| Caminho | Conteúdo |
+|---|---|
+| `src/core/config.hpp/.cpp` | Padrões (640×360, 25 fps, 500 kbps, `ultrafast`), estados e validação dos campos |
+| `src/core/stream_base.*` | Pipeline, bus watch (`gst_bus_add_watch`), probes e medição de FPS/kbps |
+| `src/core/transmitter.*`, `receiver.*` | Montagem das pipelines do servidor e do cliente |
+| `src/ui/servidor_gui.cpp`, `cliente_gui.cpp` | Interfaces GTK4 (`GtkApplication`) |
+| `src/cli/servidor_cli.cpp`, `cliente_cli.cpp` | Mesmas pipelines, sem interface |
+| `tests/test_core.cpp` | Teste automático servidor → cliente em `127.0.0.1` (`ctest`) |
+
+### D.2 Requisitos atendidos
+
+| Servidor | Cliente |
+|---|---|
+| IP de destino (`GtkEntry`) e porta UDP (`GtkSpinButton`) | Porta UDP (`GtkSpinButton`) |
+| Qualidade: resolução, quadros/s, bitrate e preset do encoder | Vídeo na própria janela (`gtk4paintablesink` + `GtkPicture`) ou em janela separada (`autovideosink`) |
+| Botões Iniciar / Interromper | Botões Iniciar / Interromper |
+| Estado: Parado, Iniciando, Transmitindo, Erro, com quadros/s, kbps e bytes enviados | Estado: Aguardando pacotes, Recebendo (sem vídeo), Reproduzindo, Sem sinal, Erro, com quadros/s e kbps |
+
+- **PLAYING não é prova de vídeo.** O estado do cliente vem de probes que contam pacotes UDP (saída do `udpsrc`) e quadros decodificados (saída do `videoconvert`).
+- **Nada bloqueia a interface.** Erros e mudanças de estado chegam pelo `GstBus` no loop principal. As probes só atualizam contadores, e a interface é atualizada via `g_idle_add`, com um contador de sessão que descarta mensagens de uma execução já interrompida.
+- **Validação e liberação.** IP, porta, bitrate e preset são validados antes de montar a pipeline. Interromper, ou fechar a janela, leva a pipeline a `NULL` e libera tudo.
+
+### D.3 Dependências (Fedora)
+
+```bash
+sudo dnf install gcc-c++ cmake gtk4-devel gstreamer1-devel gstreamer1-plugins-base-devel \
+                 gstreamer1-plugins-good gstreamer1-plugins-bad-free \
+                 gstreamer1-plugin-openh264 gstreamer1-plugin-gtk4
+sudo dnf install gstreamer1-plugins-ugly    # x264enc (RPM Fusion)
+```
+
+Sem o `x264enc`, o servidor usa `openh264enc`. Sem o `avdec_h264`, o cliente usa `openh264dec`. O codec escolhido aparece na barra de estado. Sem o `gstreamer1-plugin-gtk4`, o cliente só oferece a janela separada.
+
+### D.4 Compilar, testar e executar
+
+```bash
+cmake -S . -B build
+cmake --build build -j
+(cd build && ctest --output-on-failure)     # teste servidor -> cliente em localhost
+
+./build/cliente                 # inicie o cliente e clique em Iniciar
+./build/servidor                # informe IP/porta e clique em Iniciar
+```
+
+- **Opções:** `--porta N` nos dois programas, `--ip IP` no servidor e `--janela-separada` no cliente.
+- **Sem GTK:** `-DBUILD_GUI=OFF` compila só o núcleo, as CLIs e o teste.
+
+### D.5 Capturas
+
+| Servidor transmitindo | Cliente reproduzindo (vídeo na janela) |
+|---|---|
+| ![Servidor](imagens/gui_servidor_transmitindo.png) | ![Cliente](imagens/gui_cliente_reproduzindo.png) |
+
+| Cliente sem transmissor (PLAYING, sem vídeo) | Validação de IP inválido |
+|---|---|
+| ![Aguardando](imagens/gui_cliente_aguardando.png) | ![Erro](imagens/gui_servidor_erro_validacao.png) |
 
 ---
 
