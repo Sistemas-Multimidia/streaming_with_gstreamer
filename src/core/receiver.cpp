@@ -1,6 +1,7 @@
 #include "receiver.hpp"
 
 #include <cstdio>
+#include <initializer_list>
 #include <string>
 
 namespace {

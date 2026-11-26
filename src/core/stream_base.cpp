@@ -1,6 +1,7 @@
 #include "stream_base.hpp"
 
 #include <cstdio>
+#include <initializer_list>
 
 namespace {
 constexpr guint TICK_MS = 250;

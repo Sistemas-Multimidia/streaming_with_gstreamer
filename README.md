@@ -334,6 +334,15 @@ sudo dnf install gcc-c++ cmake gtk4-devel gstreamer1-devel gstreamer1-plugins-ba
 sudo dnf install gstreamer1-plugins-ugly    # x264enc (RPM Fusion)
 ```
 
+No Windows, use o terminal **MSYS2 UCRT64** (mesmo compilador para GTK4 e GStreamer):
+
+```bash
+pacman -S --needed git mingw-w64-ucrt-x86_64-{toolchain,cmake,pkgconf,gtk4,gstreamer,gst-plugins-base,gst-plugins-good,gst-plugins-bad,gst-plugins-ugly,gst-libav}
+pacman -S --needed mingw-w64-ucrt-x86_64-gst-plugin-gtk4   # vídeo dentro da janela (opcional)
+```
+
+Na primeira execução, permita o acesso de rede no alerta do Firewall do Windows (UDP 5000).
+
 Sem o `x264enc`, o servidor usa `openh264enc`. Sem o `avdec_h264`, o cliente usa `openh264dec`. O codec escolhido aparece na barra de estado. Sem o `gstreamer1-plugin-gtk4`, o cliente só oferece a janela separada.
 
 ### D.4 Compilar, testar e executar

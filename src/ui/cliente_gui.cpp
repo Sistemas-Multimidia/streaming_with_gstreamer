@@ -277,9 +277,11 @@ void on_shutdown(GApplication*, gpointer data) {
 int main(int argc, char** argv) {
     // O renderizador Vulkan do GTK 4.22 travou (SIGSEGV em
     // gsk_vulkan_direct_allocator_alloc) ao enviar quadros de vídeo com o
-    // driver NVIDIA 620. O renderizador OpenGL ("ngl") funciona; usamos ele
+    // driver NVIDIA 620 no Linux. O renderizador OpenGL ("ngl") funciona; usamos ele
     // por padrão, mas respeitamos GSK_RENDERER se o usuário definir outro.
+#ifndef G_OS_WIN32
     g_setenv("GSK_RENDERER", "ngl", FALSE);
+#endif
 
     gst_init(&argc, &argv);
 
